@@ -33,7 +33,6 @@ const emotion = require("./emotion_sphere.js");
  * ============================= */
 const PORT = process.env.PORT || 5000;
 const MEMORY_FILE = path.join(__dirname, "memory_longterm.json");
-const TEST_DB_URL = "http://127.0.0.1:4800/database";
 const testMode = !!process.env.TEST_MODE; // true to print more logs if you want
 
 /* =============================
@@ -229,6 +228,7 @@ const LEX = {
   disgust: ["disgust","gross","nasty","eww","filthy","yuck","repulsive","vomit"],
   surprise: ["surprised","shocked","wow","unexpected","sudden","unbelievable"]
 };
+
 function kwScores(text) {
   const t = (text||"").toLowerCase();
   const s = { sadness:0, joy:0, fear:0, disgust:0, anger:0, surprise:0 };
@@ -665,15 +665,6 @@ function chooseProhibitedObject(type, givenObject, speaker) {
   };
 
   const choose = (hasSufficientEmWeight(prohibitedObjMinimal, true) > calculateRepulsion(otherObjects[otherObjects.length-1]));
-  // notify test DB (optional)
-  try {
-    fetch(TEST_DB_URL, {
-      method: "POST",
-      headers: { "Accept":"application/json", "Content-Type":"application/json" },
-      body: JSON.stringify({ type: "prohibitedChosen", data: !!choose })
-    }).catch(()=>{});
-  } catch(_) {}
-
   if (!choose) {
     // we *did not* choose the prohibited thing → guilt stimulus stays queued but option rejected
     return false;
@@ -1316,6 +1307,10 @@ app.post("/guilt", (req, res) => {
   injectQueuedStimuli();
   res.json({ ok:true });
 });
+
+
+app.use(express.static(path.join(__dirname, "public")));
+app.get("/dashboard", (_,res)=>res.sendFile(path.join(__dirname,"public","dashboard.html")));
 
 
 /* =============================

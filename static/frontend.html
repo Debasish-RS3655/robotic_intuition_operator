@@ -1,0 +1,145 @@
+<!--
+Frotend for Robotic Intuition Operator
+Debashish Buragohain
+-->
+<!DOCTYPE html>
+<html lang='en'>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Robotic Intuition Operator</title>
+    <style>
+        body {
+            /*background-color: #071a29;*/
+            font-family: monospace;
+            font-size: 16pt;
+            color: black;
+        }
+
+        #results {
+            float: bottom;
+        }
+
+        video {
+            margin-left: 25px;
+            margin-right: auto;
+            margin-top: auto;
+            margin-bottom: auto;
+        }
+
+        .loader {
+            position: absolute;
+            top: 15%;
+            left: 30%;
+            border: 32px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 32px solid #3498db;
+            width: 350px;
+            height: 350px;
+            -webkit-animation: spin 2s linear infinite;
+            /* Safari */
+            animation: spin 2s linear infinite;
+        }
+
+        .startBtnArea {
+            text-align: center;
+        }
+
+        .startBtn {
+            background-color: #4CAF50;
+            font-family: sans-serif;
+            color: white;
+            width: 100px;
+            height: 50px;
+            visibility: hidden;
+        }
+
+        /* Safari */
+        @-webkit-keyframes spin {
+            0% {
+                -webkit-transform: rotate(0deg);
+            }
+
+            100% {
+                -webkit-transform: rotate(360deg);
+            }
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <link rel="shortcut icon" href="#"><!-- we haven't decided an icon yet-->
+    <!--Modules for the secondary frontend-->
+    <script src='./tensorflow/@1.7.0tf.min.js'></script>
+    <script src="./frontend_scripts/jquery/jquery.js"></script>
+    <script src='./tensorflow/posenetLibrary/posenet.js'></script>
+    <script src='./tensorflow/coco-ssdLibrary/coco-ssd.js'></script>
+    <script src="./tensorflow/speech-commandsLibrary/@0.4.2speech-commands.js"></script>
+    <script src='./tensorflow/mobilenetLibrary/mobilenet.js'></script>
+    <script src='./tensorflow/knn_classifier/knn-classifier.js'></script>
+    <script defer src="./tensorflow/face_api/dist/face-api.js"></script>
+    <!--Modules for the main frontend-->
+    <script src='./tensorflow/toxicity_library/toxicity.js'></script>
+    <script src="./node_modules/pitch-analyser/dist/pitch-analyser.var.js"></script>
+    <script src="./frontend_scripts/codec.js"></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+</head>
+
+<body>
+    <div class="loader"></div>
+    <!-- The display area for the main frontend-->
+    <span id="speech"></span>
+    <span id="interim"></span>
+    <div id="emotion_area">
+        <video autoplay playsinline muted id='webcam1' width='100' height='75'></video>
+        <video autoplay playsinline muted id='webcam2' width='100' height='75'></video>
+        <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+    </div>
+    <div class="startBtnArea">
+        <button class="startBtn">Start</button>
+    </div>
+    <div id="speech_area">
+        <br><br><br><br><br><br><br><br><br><br><br>
+    </div>
+    <br>
+    <!-- where we display the level of the emotions-->
+    <canvas id="levels"></canvas>
+    <br>
+    <p align='center'>Detection Results</p>
+    <br>
+    <h4>Pose Detection Results</h4>
+    <div id="pose_detection"></div>
+    <h4>Face API pretrained results</h4>
+    <div id="face_pretrained"></div>
+    <h4>Face API custom Results</h4>
+    <div id="face_custom"></div>
+    <h4>Object Detection Results</h4>
+    <div id="object_detection"></div>
+    <h4>Visual Recognition Custom Results</h4>
+    <div id="visual_recognition_custom"></div>
+    <h4>Audio Classifier Results</h4>
+    <div id="audio_classifier"></div>
+    <h4>Song Identification Results</h4>
+    <div id="song_identification"></div>
+    <h4>Speaker Identification Results</h4>
+    <div id="speaker_identification"></div>
+    <img src="./tensorflow/face_api/initImg.jpg" id="initImage">
+    <img src="data:," alt id="cseImage">
+    <canvas id="webGL_crashHandler"></canvas>
+    <script src="./frontend-javascript.js"></script>
+    <script defer src="./frontend-tensorflow.js"></script>
+    <!--Emotion level chart display-->
+    <script src="./charts/chart.js"></script>
+    <script src="./charts/chartScript.js"></script>
+</body>
+
+</html>
