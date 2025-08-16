@@ -17,6 +17,12 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
+
+// natural (tokenization + stemming)
+const natural = require('natural');
+const tokenizer = new natural.TreebankWordTokenizer();   // good, conservative English tokenizer
+const stemmer = natural.PorterStemmer;                  // Porter stemmer (English)
+
 // Optional (only if you set WATSON_NLU_APIKEY & WATSON_NLU_URL)
 let NaturalLanguageUnderstandingV1 = null;
 let IamAuthenticator = null;
@@ -52,22 +58,22 @@ const defaultLikeness = 0.5;
 
 // Frontend envelope (shape kept for compatibility)
 const F = {
-  audio_incoming: { text:null, val:null, json:null },
-  song_incoming: { text:null, val:null, json:null },           // kept for shape
-  speaker_incoming: { text:null, val:null, json:null },        // kept for shape
-  visual_incoming: { text:null, val:null, json:null },
-  verbal_incoming: { text:null, val:null, json:[] },
-  pose_incoming: { text:null, val:null, json:[] },
+  audio_incoming: { text: null, val: null, json: null },
+  song_incoming: { text: null, val: null, json: null },           // kept for shape
+  speaker_incoming: { text: null, val: null, json: null },        // kept for shape
+  visual_incoming: { text: null, val: null, json: null },
+  verbal_incoming: { text: null, val: null, json: [] },
+  pose_incoming: { text: null, val: null, json: [] },
   frontend_data: {
-    speech:null,
-    emotion:null,
-    emotionScore:null,
-    rate:null,
-    pitch:null,
-    speakingState:null,
-    faceExpression:null
+    speech: null,
+    emotion: null,
+    emotionScore: null,
+    rate: null,
+    pitch: null,
+    speakingState: null,
+    faceExpression: null
   },
-  song_incomingJS: { text:null, val:null, json:null }
+  song_incomingJS: { text: null, val: null, json: null }
 };
 
 let queueSpeech = "";
@@ -79,6 +85,28 @@ const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const map = (x, inMin, inMax, outMin, outMax) =>
   outMin + (clamp01((x - inMin) / (inMax - inMin)) * (outMax - outMin));
 
+
+// Context-vs-token weighting for emotions
+const TOKEN_WEIGHT   = 0.2;
+const CONTEXT_WEIGHT = 0.8;
+
+function blendEmotions(a, b, wa = TOKEN_WEIGHT, wb = CONTEXT_WEIGHT) {
+  const ax = a || {}, bx = b || {};
+  const clamp = (v)=> Math.max(0, Math.min(1, v||0));
+  return {
+    sadness:  clamp((ax.sadness||0)*wa + (bx.sadness||0)*wb),
+    joy:      clamp((ax.joy||0)    *wa + (bx.joy||0)    *wb),
+    fear:     clamp((ax.fear||0)   *wa + (bx.fear||0)   *wb),
+    disgust:  clamp((ax.disgust||0)*wa + (bx.disgust||0)*wb),
+    anger:    clamp((ax.anger||0)  *wa + (bx.anger||0)  *wb),
+    surprise: clamp((ax.surprise||0)*wa + (bx.surprise||0)*wb),
+  };
+}
+
+
+
+
+
 const hashLabel = (prefix, text) =>
   `${prefix}_${crypto.createHash("sha1").update(String(text)).digest("hex").slice(0, 8)}`;
 
@@ -87,7 +115,7 @@ function bubblSrt(arr, key) { // simple stable-ish ascending bubble sort for sma
   for (let i = 0; i < a.length - 1; i++) {
     for (let j = 0; j < a.length - i - 1; j++) {
       if (a[j][key] > a[j + 1][key]) {
-        const t = a[j]; a[j] = a[j+1]; a[j+1] = t;
+        const t = a[j]; a[j] = a[j + 1]; a[j + 1] = t;
       }
     }
   }
@@ -156,7 +184,7 @@ function writeMemory(mem) {
 }
 
 // memoryRet(type:'longTerm', label, set?, data?, createIfMissing?, ensureExist?, relatedStimuli?, relatedPeople?, relatedEmotions?, index?)
-function memoryRet(type, label, setFlag=false, data=null, createIfMissing=false, ensureExist=false, relatedStimuli=null, relatedPeople=null, relatedEmotions=null, indexOpt=null) {
+function memoryRet(type, label, setFlag = false, data = null, createIfMissing = false, ensureExist = false, relatedStimuli = null, relatedPeople = null, relatedEmotions = null, indexOpt = null) {
   const mem = readMemory();
   if (!mem[type]) mem[type] = [];
   const arr = mem[type];
@@ -221,17 +249,17 @@ function getNLU() {
 }
 
 const LEX = {
-  joy: ["happy","glad","great","awesome","love","amazing","excellent","win","yay","good"],
-  sadness: ["sad","down","unhappy","depressed","sorrow","cry","gloom","bad","loss","lonely"],
-  anger: ["angry","mad","furious","annoyed","rage","irritated","hate","disrespect"],
-  fear: ["scared","afraid","anxious","worried","panic","nervous","concerned","fear"],
-  disgust: ["disgust","gross","nasty","eww","filthy","yuck","repulsive","vomit"],
-  surprise: ["surprised","shocked","wow","unexpected","sudden","unbelievable"]
+  joy: ["happy", "glad", "great", "awesome", "love", "amazing", "excellent", "win", "yay", "good"],
+  sadness: ["sad", "down", "unhappy", "depressed", "sorrow", "cry", "gloom", "bad", "loss", "lonely"],
+  anger: ["angry", "mad", "furious", "annoyed", "rage", "irritated", "hate", "disrespect"],
+  fear: ["scared", "afraid", "anxious", "worried", "panic", "nervous", "concerned", "fear"],
+  disgust: ["disgust", "gross", "nasty", "eww", "filthy", "yuck", "repulsive", "vomit"],
+  surprise: ["surprised", "shocked", "wow", "unexpected", "sudden", "unbelievable"]
 };
 
 function kwScores(text) {
-  const t = (text||"").toLowerCase();
-  const s = { sadness:0, joy:0, fear:0, disgust:0, anger:0, surprise:0 };
+  const t = (text || "").toLowerCase();
+  const s = { sadness: 0, joy: 0, fear: 0, disgust: 0, anger: 0, surprise: 0 };
   for (const w of t.split(/\W+/)) {
     if (!w) continue;
     if (LEX.joy.includes(w)) s.joy += 0.2;
@@ -242,9 +270,76 @@ function kwScores(text) {
     if (LEX.surprise.includes(w)) s.surprise += 0.2;
   }
   for (const k in s) s[k] = clamp01(s[k]);
-  if (Object.values(s).every(v=>v===0)) s.joy = 0.05;
+  if (Object.values(s).every(v => v === 0)) s.joy = 0.05;
   return s;
 }
+
+// -------- token helpers via natural --------
+// use natural's stopwords if present; add a few UI/common extras
+const NATURAL_STOPWORDS = (natural.stopwords || []).map(s => s.toLowerCase());
+const EXTRA_STOPWORDS = [
+  "ok", "okay", "yeah", "yep", "nope", "uh", "um", "hi", "hello", "hey", "please", "thanks", "thank", "you"
+];
+const STOPWORDS = new Set([...NATURAL_STOPWORDS, ...EXTRA_STOPWORDS]);
+
+function normalizeToken(t) {
+  return String(t).toLowerCase().replace(/[^a-z0-9_+/-]/g, "").trim();
+}
+
+function isMeaningfulToken(t) {
+  if (!t || t.length < 2) return false;
+  if (STOPWORDS.has(t)) return false;
+  // avoid colliding with special engine labels
+  if (checkIfSpecialDecisions(t)) return false;
+  return true;
+}
+
+/**
+ * Build stimuli from tokens (canonicalized by stemming).
+ * - Label = stem (canonical form) so "running/run/ran" map to one memory key.
+ * - Emotion = kwScores() on token and stem (max of both).
+ */
+async function tokenStimuliFromText(text, personality) {
+  const rawTokens = tokenizer.tokenize(text || "");
+  const sentenceEmo = await sentenceEmotionFromText(text); // ← whole-sentence context once
+  const seen = new Set();
+  const stimuli = [];
+
+  for (const raw of rawTokens) {
+    const tok = normalizeToken(raw);
+    if (!isMeaningfulToken(tok)) continue;
+
+    const stem = stemmer.stem(tok);
+    const label = normalizeToken(stem);
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+
+    // context-aware emotions for both surface and stem
+    const emoTok  = kwScoresContext(tok,   sentenceEmo);
+    const emoStem = kwScoresContext(label, sentenceEmo);
+
+    // pick the stronger signal dimension-wise
+    const emo = {
+      sadness:  Math.max(emoTok.sadness,  emoStem.sadness),
+      joy:      Math.max(emoTok.joy,      emoStem.joy),
+      fear:     Math.max(emoTok.fear,     emoStem.fear),
+      disgust:  Math.max(emoTok.disgust,  emoStem.disgust),
+      anger:    Math.max(emoTok.anger,    emoStem.anger),
+      surprise: Math.max(emoTok.surprise, emoStem.surprise),
+    };
+
+    // tiny neutral nudge if totally flat
+    if (Object.values(emo).every(v => (v||0) === 0)) emo.joy = 0.05;
+
+    const stim = makeStimulus(label, emo, personality || {}, { isProhibited: false });
+    stim.relatedStimuli = Object.assign({}, stim.relatedStimuli, { [tok]: true });
+    stimuli.push(stim);
+  }
+  return stimuli;
+}
+
+
+
 async function analyzeNLU(text) {
   const nlu = getNLU();
   if (nlu === false) {
@@ -278,24 +373,44 @@ async function analyzeNLU(text) {
   }
 }
 
+async function sentenceEmotionFromText(fullText) {
+  try {
+    const nlu = await analyzeNLU(fullText);   // your existing NLU
+    return nlu?.emotion || { sadness:0, joy:0, fear:0, disgust:0, anger:0, surprise:0 };
+  } catch (e) {
+    // fallback: neutral if NLU temporarily unavailable
+    return { sadness:0, joy:0, fear:0, disgust:0, anger:0, surprise:0 };
+  }
+}
+
+// Contextualized KW score: blend token/stem lexicon score with whole-sentence emotion
+function kwScoresContext(labelOrStem, sentenceEmo) {
+  // keep your existing per-word scorer (do NOT remove/rename it)
+  const local = kwScores(labelOrStem); // ← your current token-only scorer
+  return blendEmotions(local, sentenceEmo, TOKEN_WEIGHT, CONTEXT_WEIGHT);
+}
+
+
+
+
 /* =============================
  * Face / Voice hints
  * ============================= */
 function faceFromEmotions(e) {
-  const entries = Object.entries(e).sort((a,b)=>b[1]-a[1]);
-  const [maxName,maxVal] = entries[0];
+  const entries = Object.entries(e).sort((a, b) => b[1] - a[1]);
+  const [maxName, maxVal] = entries[0];
   let face = "neutral";
   switch (maxName) {
-    case "joy": face = maxVal>0.7 ? "joy_big" : "joy"; break;
-    case "sadness": face = maxVal>0.7 ? "sad_big" : "sad"; break;
-    case "anger": face = maxVal>0.7 ? "anger_big" : "anger"; break;
-    case "fear": face = maxVal>0.7 ? "fear_big" : "fear"; break;
-    case "disgust": face = maxVal>0.7 ? "disgust_big" : "disgust"; break;
-    case "surprise": face = maxVal>0.7 ? "surprise_big" : "surprise"; break;
+    case "joy": face = maxVal > 0.7 ? "joy_big" : "joy"; break;
+    case "sadness": face = maxVal > 0.7 ? "sad_big" : "sad"; break;
+    case "anger": face = maxVal > 0.7 ? "anger_big" : "anger"; break;
+    case "fear": face = maxVal > 0.7 ? "fear_big" : "fear"; break;
+    case "disgust": face = maxVal > 0.7 ? "disgust_big" : "disgust"; break;
+    case "surprise": face = maxVal > 0.7 ? "surprise_big" : "surprise"; break;
     default: face = "neutral";
   }
-  const pitch = Math.max(0.6, Math.min(1.4, 0.9 + 0.2*(e.joy + e.surprise) - 0.1*(e.sadness + e.anger + e.fear)));
-  const rate  = Math.max(0.7, Math.min(1.3, 0.9 + 0.2*(e.surprise + e.joy) - 0.15*(e.sadness)));
+  const pitch = Math.max(0.6, Math.min(1.4, 0.9 + 0.2 * (e.joy + e.surprise) - 0.1 * (e.sadness + e.anger + e.fear)));
+  const rate = Math.max(0.7, Math.min(1.3, 0.9 + 0.2 * (e.surprise + e.joy) - 0.15 * (e.sadness)));
   return { face, pitch, rate };
 }
 
@@ -349,15 +464,15 @@ const choiceThreshold = 0.30;
 // dynamic weight vectors (ascending importance) depending on # of dependent emotions
 function weightsFor(n) {
   // normalized ascending 1..n
-  const arr = Array.from({length:n}, (_,i)=>i+1);
-  const s = arr.reduce((a,b)=>a+b,0);
-  return arr.map(v=>v/s);
+  const arr = Array.from({ length: n }, (_, i) => i + 1);
+  const s = arr.reduce((a, b) => a + b, 0);
+  return arr.map(v => v / s);
 }
 
 /* =============================
  * System emotion mirrors (rio_*)
  * ============================= */
-let rio_sadness=0, rio_joy=0, rio_fear=0, rio_disgust=0, rio_anger=0, rio_surprise=0;
+let rio_sadness = 0, rio_joy = 0, rio_fear = 0, rio_disgust = 0, rio_anger = 0, rio_surprise = 0;
 function refreshSystemEmotions() {
   const e = emotion.getEmotions();
   rio_sadness = e.sadness; rio_joy = e.joy; rio_fear = e.fear; rio_disgust = e.disgust; rio_anger = e.anger; rio_surprise = e.surprise;
@@ -369,15 +484,15 @@ function refreshSystemEmotions() {
 function PersonalityDiffScaledScore(x, isObj = false) {
   // When x is a person object: x.personality has Big-Five
   const p = isObj ? x.personality : (x && x.personality ? x.personality : x);
-  const keys = ["openness","conscientiousness","extraversion","agreeableness","neuroticism"];
-  let dot=0, na=0, nb=0;
+  const keys = ["openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism"];
+  let dot = 0, na = 0, nb = 0;
   for (const k of keys) {
     const a = clamp01(Agent.bigFive[k] ?? 0.5);
     const b = clamp01(p?.[k] ?? 0.5);
-    dot += a*b; na += a*a; nb += b*b;
+    dot += a * b; na += a * a; nb += b * b;
   }
-  if (na===0 || nb===0) return 0.5;
-  return clamp01(dot / (Math.sqrt(na)*Math.sqrt(nb)));
+  if (na === 0 || nb === 0) return 0.5;
+  return clamp01(dot / (Math.sqrt(na) * Math.sqrt(nb)));
 }
 function personalityNearby(optionObj, returnScore) {
   // compare stimulus' embedded personality with agent's
@@ -396,22 +511,22 @@ function personalityNearby(optionObj, returnScore) {
  * ============================= */
 let extraDisplayControl = []; // used to avoid duplicate logs in test mode
 
-function calculateRepulsion(optionObj, reverseScale=false) {
+function calculateRepulsion(optionObj, reverseScale = false) {
   refreshSystemEmotions();
   let sadnessInvolved = optionObj.sadness !== "system_sadness_";
-  let joyInvolved     = optionObj.joy !== "system_joy_";
-  let fearInvolved    = optionObj.fear !== "system_fear_";
+  let joyInvolved = optionObj.joy !== "system_joy_";
+  let fearInvolved = optionObj.fear !== "system_fear_";
   let disgustInvolved = optionObj.disgust !== "system_disgust_";
-  let angerInvolved   = optionObj.anger !== "system_anger_";
-  let surpriseInvolved= optionObj.surprise !== "system_surprise_";
+  let angerInvolved = optionObj.anger !== "system_anger_";
+  let surpriseInvolved = optionObj.surprise !== "system_surprise_";
 
   let sadnessDiff, joyDiff, fearDiff, disgustDiff, angerDiff, surpriseDiff;
 
   if (sadnessInvolved) sadnessDiff = optionObj.sadness > rio_sadness ? optionObj.sadness - rio_sadness : 0;
-  if (joyInvolved)     joyDiff     = rio_joy > optionObj.joy ? rio_joy - optionObj.joy : 0;
-  if (fearInvolved)    fearDiff    = optionObj.fear > rio_fear ? optionObj.fear - rio_fear : 0;
+  if (joyInvolved) joyDiff = rio_joy > optionObj.joy ? rio_joy - optionObj.joy : 0;
+  if (fearInvolved) fearDiff = optionObj.fear > rio_fear ? optionObj.fear - rio_fear : 0;
   if (disgustInvolved) disgustDiff = optionObj.disgust > rio_disgust ? optionObj.disgust - rio_disgust : 0;
-  if (angerInvolved)   angerDiff   = optionObj.anger > rio_anger ? optionObj.anger - rio_anger : 0;
+  if (angerInvolved) angerDiff = optionObj.anger > rio_anger ? optionObj.anger - rio_anger : 0;
   if (surpriseInvolved) {
     if (isPositiveSurprise(optionObj)) {
       surpriseDiff = rio_surprise > optionObj.surprise ? rio_surprise - optionObj.surprise : 0;
@@ -421,28 +536,28 @@ function calculateRepulsion(optionObj, reverseScale=false) {
   }
 
   const diffArr = [sadnessDiff, joyDiff, fearDiff, disgustDiff, angerDiff, surpriseDiff];
-  const labels  = ['sadness','joy','fear','disgust','anger','surprise'];
+  const labels = ['sadness', 'joy', 'fear', 'disgust', 'anger', 'surprise'];
 
-  for (let i=0;i<diffArr.length;i++){
+  for (let i = 0; i < diffArr.length; i++) {
     if (diffArr[i] === undefined) {
       if (testMode) console.log(optionObj.label, "'s repulsion is independent of ", labels[i]);
-      diffArr.splice(i,1); labels.splice(i,1); i--;
+      diffArr.splice(i, 1); labels.splice(i, 1); i--;
     }
   }
 
   let weightedArray = weightsFor(diffArr.length);
   // ascending sort by value with labels paired
-  for (let i=0;i<diffArr.length-1;i++){
-    for (let j=i+1;j<diffArr.length;j++){
+  for (let i = 0; i < diffArr.length - 1; i++) {
+    for (let j = i + 1; j < diffArr.length; j++) {
       if (diffArr[i] > diffArr[j]) {
-        const t=diffArr[i]; diffArr[i]=diffArr[j]; diffArr[j]=t;
-        const t2=labels[i]; labels[i]=labels[j]; labels[j]=t2;
+        const t = diffArr[i]; diffArr[i] = diffArr[j]; diffArr[j] = t;
+        const t2 = labels[i]; labels[i] = labels[j]; labels[j] = t2;
       }
     }
   }
 
-  let w = { sadness:0, joy:0, fear:0, disgust:0, anger:0, surprise:0 };
-  for (let i=0;i<diffArr.length;i++){
+  let w = { sadness: 0, joy: 0, fear: 0, disgust: 0, anger: 0, surprise: 0 };
+  for (let i = 0; i < diffArr.length; i++) {
     w[labels[i]] = diffArr[i] * weightedArray[i];
   }
 
@@ -460,24 +575,24 @@ function calculateRepulsion(optionObj, reverseScale=false) {
   return weightedAvg;
 }
 
-function hasSufficientEmWeight(givenOption, returnTheScore=false) {
+function hasSufficientEmWeight(givenOption, returnTheScore = false) {
   refreshSystemEmotions();
 
   function calculateInclination(optionObj, sadIncl, joyIncl, fearIncl, disgustIncl, angerIncl, surpriseIncl) {
     let sadnessInvolved = optionObj.sadness !== "system_sadness_";
-    let joyInvolved     = optionObj.joy !== "system_joy_";
-    let fearInvolved    = optionObj.fear !== "system_fear_";
+    let joyInvolved = optionObj.joy !== "system_joy_";
+    let fearInvolved = optionObj.fear !== "system_fear_";
     let disgustInvolved = optionObj.disgust !== "system_disgust_";
-    let angerInvolved   = optionObj.anger !== "system_anger_";
-    let surpriseInvolved= optionObj.surprise !== "system_surprise_";
+    let angerInvolved = optionObj.anger !== "system_anger_";
+    let surpriseInvolved = optionObj.surprise !== "system_surprise_";
 
     let sadnessDiff, joyDiff, fearDiff, disgustDiff, angerDiff, surpriseDiff;
 
     if (sadnessInvolved) sadnessDiff = rio_sadness > optionObj.sadness ? rio_sadness - optionObj.sadness : 0;
-    if (joyInvolved)     joyDiff     = optionObj.joy > rio_joy ? optionObj.joy - rio_joy : 0;
-    if (fearInvolved)    fearDiff    = rio_fear > optionObj.fear ? rio_fear - optionObj.fear : 0;
+    if (joyInvolved) joyDiff = optionObj.joy > rio_joy ? optionObj.joy - rio_joy : 0;
+    if (fearInvolved) fearDiff = rio_fear > optionObj.fear ? rio_fear - optionObj.fear : 0;
     if (disgustInvolved) disgustDiff = rio_disgust > optionObj.disgust ? rio_disgust - optionObj.disgust : 0;
-    if (angerInvolved)   angerDiff   = rio_anger > optionObj.anger ? rio_anger - optionObj.anger : 0;
+    if (angerInvolved) angerDiff = rio_anger > optionObj.anger ? rio_anger - optionObj.anger : 0;
     if (surpriseInvolved) {
       if (isPositiveSurprise(optionObj)) {
         surpriseDiff = optionObj.surprise > rio_surprise ? optionObj.surprise - rio_surprise : 0;
@@ -487,35 +602,35 @@ function hasSufficientEmWeight(givenOption, returnTheScore=false) {
     }
 
     const diffArr = [sadnessDiff, joyDiff, fearDiff, disgustDiff, angerDiff, surpriseDiff];
-    const labels  = ['sadness','joy','fear','disgust','anger','surprise'];
-    for (let i=0;i<diffArr.length;i++){
+    const labels = ['sadness', 'joy', 'fear', 'disgust', 'anger', 'surprise'];
+    for (let i = 0; i < diffArr.length; i++) {
       if (diffArr[i] === undefined) {
         if (testMode) console.log(optionObj.label, "'s inclination is independent of ", labels[i]);
-        diffArr.splice(i,1); labels.splice(i,1); i--;
+        diffArr.splice(i, 1); labels.splice(i, 1); i--;
       }
     }
 
     let weightedArray = weightsFor(diffArr.length);
     // ascending sort with labels
-    for (let i=0;i<diffArr.length-1;i++){
-      for (let j=i+1;j<diffArr.length;j++){
+    for (let i = 0; i < diffArr.length - 1; i++) {
+      for (let j = i + 1; j < diffArr.length; j++) {
         if (diffArr[i] > diffArr[j]) {
-          const t=diffArr[i]; diffArr[i]=diffArr[j]; diffArr[j]=t;
-          const t2=labels[i]; labels[i]=labels[j]; labels[j]=t2;
+          const t = diffArr[i]; diffArr[i] = diffArr[j]; diffArr[j] = t;
+          const t2 = labels[i]; labels[i] = labels[j]; labels[j] = t2;
         }
       }
     }
 
-    let w = { sadness:0, joy:0, fear:0, disgust:0, anger:0, surprise:0 };
-    for (let i=0;i<diffArr.length;i++){
+    let w = { sadness: 0, joy: 0, fear: 0, disgust: 0, anger: 0, surprise: 0 };
+    for (let i = 0; i < diffArr.length; i++) {
       let v = diffArr[i] * weightedArray[i];
-      switch(labels[i]){
-        case "sadness":  w.sadness  = (sadIncl!==undefined)  ? (0.80*v + 0.20*sadIncl) : v; break;
-        case "joy":      w.joy      = (joyIncl!==undefined)  ? (0.80*v + 0.20*joyIncl) : v; break;
-        case "fear":     w.fear     = (fearIncl!==undefined) ? (0.80*v + 0.20*fearIncl) : v; break;
-        case "disgust":  w.disgust  = (disgustIncl!==undefined)?(0.80*v + 0.20*disgustIncl) : v; break;
-        case "anger":    w.anger    = (angerIncl!==undefined)? (0.80*v + 0.20*angerIncl) : v; break;
-        case "surprise": w.surprise = (surpriseIncl!==undefined)?(0.80*v + 0.20*surpriseIncl) : v; break;
+      switch (labels[i]) {
+        case "sadness": w.sadness = (sadIncl !== undefined) ? (0.80 * v + 0.20 * sadIncl) : v; break;
+        case "joy": w.joy = (joyIncl !== undefined) ? (0.80 * v + 0.20 * joyIncl) : v; break;
+        case "fear": w.fear = (fearIncl !== undefined) ? (0.80 * v + 0.20 * fearIncl) : v; break;
+        case "disgust": w.disgust = (disgustIncl !== undefined) ? (0.80 * v + 0.20 * disgustIncl) : v; break;
+        case "anger": w.anger = (angerIncl !== undefined) ? (0.80 * v + 0.20 * angerIncl) : v; break;
+        case "surprise": w.surprise = (surpriseIncl !== undefined) ? (0.80 * v + 0.20 * surpriseIncl) : v; break;
       }
     }
 
@@ -533,19 +648,19 @@ function hasSufficientEmWeight(givenOption, returnTheScore=false) {
 
   // pull basic emotion reference objects from memory (basic labels differ in testMode vs normal)
   const suf = testMode ? "__" : "_";
-  const sadnessObj  = memoryRet("longTerm", "sadness" + suf, false, null, false, false);
-  const joyObj      = memoryRet("longTerm", "joy" + suf, false, null, false, false);
-  const fearObj     = memoryRet("longTerm", "fear" + suf, false, null, false, false);
-  const disgustObj  = memoryRet("longTerm", "disgust" + suf, false, null, false, false);
-  const angerObj    = memoryRet("longTerm", "anger" + suf, false, null, false, false);
+  const sadnessObj = memoryRet("longTerm", "sadness" + suf, false, null, false, false);
+  const joyObj = memoryRet("longTerm", "joy" + suf, false, null, false, false);
+  const fearObj = memoryRet("longTerm", "fear" + suf, false, null, false, false);
+  const disgustObj = memoryRet("longTerm", "disgust" + suf, false, null, false, false);
+  const angerObj = memoryRet("longTerm", "anger" + suf, false, null, false, false);
   const surpriseObj = memoryRet("longTerm", "surprise" + suf, false, null, false, false);
 
-  const sadnessIncl   = sadnessObj?.data ? calculateInclination(sadnessObj.data)   : undefined;
-  const joyIncl       = joyObj?.data ? calculateInclination(joyObj.data)           : undefined;
-  const fearIncl      = fearObj?.data ? calculateInclination(fearObj.data)         : undefined;
-  const disgustIncl   = disgustObj?.data ? calculateInclination(disgustObj.data)   : undefined;
-  const angerIncl     = angerObj?.data ? calculateInclination(angerObj.data)       : undefined;
-  const surpriseIncl  = surpriseObj?.data ? calculateInclination(surpriseObj.data) : undefined;
+  const sadnessIncl = sadnessObj?.data ? calculateInclination(sadnessObj.data) : undefined;
+  const joyIncl = joyObj?.data ? calculateInclination(joyObj.data) : undefined;
+  const fearIncl = fearObj?.data ? calculateInclination(fearObj.data) : undefined;
+  const disgustIncl = disgustObj?.data ? calculateInclination(disgustObj.data) : undefined;
+  const angerIncl = angerObj?.data ? calculateInclination(angerObj.data) : undefined;
+  const surpriseIncl = surpriseObj?.data ? calculateInclination(surpriseObj.data) : undefined;
 
   const total = calculateInclination(givenOption, sadnessIncl, joyIncl, fearIncl, disgustIncl, angerIncl, surpriseIncl);
 
@@ -610,14 +725,14 @@ function chooseProhibitedObject(type, givenObject, speaker) {
   const personalitySim = (speakerIdx !== -1)
     ? PersonalityDiffScaledScore(personsPresent[speakerIdx])
     : PersonalityDiffScaledScore({
-        personality: {
-          openness: Agent.bigFive.openness,
-          conscientiousness: Agent.bigFive.conscientiousness,
-          extraversion: Agent.bigFive.extraversion,
-          agreeableness: Agent.bigFive.agreeableness,
-          neuroticism: Agent.bigFive.neuroticism
-        }
-      }, true);
+      personality: {
+        openness: Agent.bigFive.openness,
+        conscientiousness: Agent.bigFive.conscientiousness,
+        extraversion: Agent.bigFive.extraversion,
+        agreeableness: Agent.bigFive.agreeableness,
+        neuroticism: Agent.bigFive.neuroticism
+      }
+    }, true);
 
   const likenessVal = (speakerIdx !== -1) ? personsPresent[speakerIdx].likeness : defaultLikeness;
   const timeEffectCoefficient = 1;
@@ -664,7 +779,7 @@ function chooseProhibitedObject(type, givenObject, speaker) {
     surprise: givenObject.surprise
   };
 
-  const choose = (hasSufficientEmWeight(prohibitedObjMinimal, true) > calculateRepulsion(otherObjects[otherObjects.length-1]));
+  const choose = (hasSufficientEmWeight(prohibitedObjMinimal, true) > calculateRepulsion(otherObjects[otherObjects.length - 1]));
   if (!choose) {
     // we *did not* choose the prohibited thing → guilt stimulus stays queued but option rejected
     return false;
@@ -684,6 +799,7 @@ function emotionalDecide(action, options, speaker) {
 
   let decided = false;
   const decision = { type: null, subtype: null, object: null };
+  console.log("Decision made:", decision)
 
   // ACTION CHECK
   if (!decided) {
@@ -847,7 +963,7 @@ function emotionalDecide(action, options, speaker) {
 /* =============================
  * Stimulus Creation + Injection
  * ============================= */
-function makeStimulus(label, emo, traits={}, opts={}) {
+function makeStimulus(label, emo, traits = {}, opts = {}) {
   return {
     label,
     sadness: clamp01(emo.sadness || 0),
@@ -888,15 +1004,28 @@ function injectQueuedStimuli() {
  * ============================= */
 const terminate_Word = "goodbye"; // simple terminator
 
-async function mainResponse(givenText, currentSpeaker="user") {
+async function mainResponse(givenText, currentSpeaker = "user") {
   let responseText = "";
   const decisionObjects = decisionSpeechExtractor.decisionSpeech(givenText);
 
   if (decisionObjects != null) {
-    const DecisionmainVerb = decisionObjects.verbs[0] || "chooseOption_";
-    const decisionOptions = decisionObjects.objects || [];
-    const decision = emotionalDecide(DecisionmainVerb, decisionOptions, currentSpeaker);
+    var DecisionmainVerb = decisionObjects.verbs[0];     // keep the original for speaking later
+    var decisionOptions = decisionObjects.objects || []; // originals for speaking
 
+    // --- NEW: stem for decision logic, keep originals for response text ---
+    const DecisionmainVerbStem = stemmer.stem(String(DecisionmainVerb || "").toLowerCase());
+    const decisionOptionsStem = decisionOptions.map(o => stemmer.stem(String(o || "").toLowerCase()));
+
+    // map stems back to original surfaces so we never speak stems
+    const surfaceByStem = new Map();
+    surfaceByStem.set(DecisionmainVerbStem, DecisionmainVerb);
+    for (let i = 0; i < decisionOptions.length; i++) {
+      surfaceByStem.set(decisionOptionsStem[i], decisionOptions[i]);
+    }
+    const surfaceForStem = (s) => surfaceByStem.get(s) || s; // fallback to stem if unseen
+
+    // decide using STEMS only
+    var decision = emotionalDecide(DecisionmainVerbStem, decisionOptionsStem, currentSpeaker);
     const randomNum = Math.round(Math.random() * 4);
     switch (decision.type) {
       case "action_liked":
@@ -986,15 +1115,22 @@ async function mainResponse(givenText, currentSpeaker="user") {
             case 2: responseText += "I will favour " + speakverb + ". But I don't favour my options."; break;
             default: responseText += "I will surely like " + speakverb + ". However I don't prefer my options.";
           }
-        } else {
-          // selected label in subtype
+        }
+
+        // multi_option_type ... // when we have actually selected something
+        else {
+          const chosenSurface = surfaceForStem(decision.subtype); // <-- map stem → original
           switch (randomNum) {
-            case 1: responseText += "I will favour " + decision.subtype + "."; break;
-            case 2: responseText += "I will surely go for " + decision.subtype + "."; break;
-            case 3: responseText += "I will select " + decision.subtype + "."; break;
-            default: responseText += "I will prefer " + decision.subtype + ".";
+            case 1: responseText += "I will favour " + chosenSurface + ".";
+              break;
+            case 2: responseText += "I will surely go for " + chosenSurface + ".";
+              break;
+            case 3: responseText += "I will select " + chosenSurface + ".";
+              break;
+            default: responseText += "I will prefer " + chosenSurface + ".";
           }
         }
+
         break;
 
       default:
@@ -1060,22 +1196,29 @@ app.post("/output", async (req, res) => {
         personsPresent[speakerIdx].likeness = clamp01(personsPresent[speakerIdx].likeness + 0.05);
       }
 
-      // NLU → stimulus
-      const nlu = await analyzeNLU(text);
-      const label = hashLabel("verbal", text);
-      const stim = makeStimulus(label, nlu.emotion, personsPresent[speakerIdx].personality, { isProhibited: false });
+      // Tokenize + stem with natural → per-token stimuli
+      const stimuli = await tokenStimuliFromText(text, personsPresent[speakerIdx].personality);
 
-      // inject verbal stimulus
+      // Fallback: if everything got filtered out, keep legacy one-shot behavior once
+      if (stimuli.length === 0) {
+        const nlu = await analyzeNLU(text);
+        const fallbackLabel = hashLabel("verbal", text);
+        stimuli.push(makeStimulus(fallbackLabel, nlu.emotion, personsPresent[speakerIdx].personality, { isProhibited: false }));
+      }
+
+      // inject all token stimuli at once
       emotion.input({
         type: "verbal",
         speaker,
         likeness: personsPresent[speakerIdx].likeness,
         personality: personsPresent[speakerIdx].personality,
-        objects: [stim]
+        objects: stimuli
       });
 
-      // push into memory (learned stimulus)
-      memoryRet("longTerm", stim.label, true, Object.assign({}, stim), true, true);
+      // persist each token stimulus exactly as learned (by stem label)
+      for (const s of stimuli) {
+        memoryRet("longTerm", s.label, true, Object.assign({}, s), true, true);
+      }
 
       // Decision speech → response (speak/not)
       const agentEmo = emotion.getEmotions();
@@ -1117,18 +1260,18 @@ app.post("/input", (req, res) => {
   res.json(F);
 
   // clear one-shots
-  ["audio_incoming","song_incoming","speaker_incoming","visual_incoming","song_incomingJS"].forEach(k=>{
-    if (F[k].text!==null) F[k].text=null;
-    if (F[k].val!==null) F[k].val=null;
-    if (F[k].json!==null) F[k].json=null;
+  ["audio_incoming", "song_incoming", "speaker_incoming", "visual_incoming", "song_incomingJS"].forEach(k => {
+    if (F[k].text !== null) F[k].text = null;
+    if (F[k].val !== null) F[k].val = null;
+    if (F[k].json !== null) F[k].json = null;
   });
-  if (F.verbal_incoming.text!==null) F.verbal_incoming.text=null;
-  if (F.verbal_incoming.val!==null) F.verbal_incoming.val=null;
-  if (F.verbal_incoming.json.length) F.verbal_incoming.json.length=0;
-  if (F.pose_incoming.text!==null) F.pose_incoming.text=null;
-  if (F.pose_incoming.val!==null) F.pose_incoming.val=null;
-  if (F.pose_incoming.json.length) F.pose_incoming.json.length=0;
-  if (F.frontend_data.speech!==null) F.frontend_data.speech=null;
+  if (F.verbal_incoming.text !== null) F.verbal_incoming.text = null;
+  if (F.verbal_incoming.val !== null) F.verbal_incoming.val = null;
+  if (F.verbal_incoming.json.length) F.verbal_incoming.json.length = 0;
+  if (F.pose_incoming.text !== null) F.pose_incoming.text = null;
+  if (F.pose_incoming.val !== null) F.pose_incoming.val = null;
+  if (F.pose_incoming.json.length) F.pose_incoming.json.length = 0;
+  if (F.frontend_data.speech !== null) F.frontend_data.speech = null;
 });
 
 // SAVE/RESTORE (persist learned stimuli exactly as stored)
@@ -1172,7 +1315,7 @@ app.post("/save", (req, res) => {
 // returns: { ok:true, stimulus }
 app.post("/learn_stimulus", (req, res) => {
   const { label, emotions = {}, isProhibited = false, traits = {}, inject = false } = req.body || {};
-  if (!label) return res.status(400).json({ ok:false, error:"label required" });
+  if (!label) return res.status(400).json({ ok: false, error: "label required" });
 
   const stim = makeStimulus(label, emotions, traits, { isProhibited });
   // persist exactly as learned
@@ -1187,7 +1330,7 @@ app.post("/learn_stimulus", (req, res) => {
       objects: [stim]
     });
   }
-  res.json({ ok:true, stimulus: stim });
+  res.json({ ok: true, stimulus: stim });
 });
 
 
@@ -1197,10 +1340,10 @@ app.post("/learn_stimulus", (req, res) => {
 app.post("/mark_prohibited", (req, res) => {
   const { label, prohibited, guilt_influence } = req.body || {};
   if (!label || typeof prohibited !== "boolean")
-    return res.status(400).json({ ok:false, error:"label and prohibited(boolean) required" });
+    return res.status(400).json({ ok: false, error: "label and prohibited(boolean) required" });
 
   const rec = memoryRet("longTerm", label, false, null, false, false);
-  if (!rec) return res.status(404).json({ ok:false, error:"not found" });
+  if (!rec) return res.status(404).json({ ok: false, error: "not found" });
 
   const updated = Object.assign({}, rec.data, {
     isProhibited: !!prohibited
@@ -1215,7 +1358,7 @@ app.post("/mark_prohibited", (req, res) => {
     injectQueuedStimuli();
   }
 
-  res.json({ ok:true, updated });
+  res.json({ ok: true, updated });
 });
 
 
@@ -1226,7 +1369,7 @@ app.get("/memory/stimuli", (req, res) => {
   const q = (req.query.q || "").toString().toLowerCase();
   const mem = readMemory();
   const all = Array.isArray(mem.longTerm) ? mem.longTerm : [];
-  const out = q ? all.filter(o => (o.label||"").toLowerCase().includes(q)) : all;
+  const out = q ? all.filter(o => (o.label || "").toLowerCase().includes(q)) : all;
   res.json(out);
 });
 
@@ -1234,7 +1377,7 @@ app.get("/memory/stimuli", (req, res) => {
 app.get("/memory/stimuli/:label", (req, res) => {
   const label = req.params.label;
   const rec = memoryRet("longTerm", label, false, null, false, false);
-  if (!rec) return res.status(404).json({ ok:false, error:"not found" });
+  if (!rec) return res.status(404).json({ ok: false, error: "not found" });
   res.json(rec.data);
 });
 
@@ -1264,13 +1407,13 @@ app.post("/decide", (req, res) => {
 // returns: { ok:true, stimulus }
 app.post("/stimulate", (req, res) => {
   const { label, emotions = {}, traits = {}, type = "other", speaker = "system", likeness = 0.5, isProhibited = false } = req.body || {};
-  if (!label) return res.status(400).json({ ok:false, error:"label required" });
+  if (!label) return res.status(400).json({ ok: false, error: "label required" });
 
   const stim = makeStimulus(label, emotions, traits, { isProhibited });
   emotion.input({ type, speaker, likeness: clamp01(likeness), personality: traits || {}, objects: [stim] });
   memoryRet("longTerm", stim.label, true, Object.assign({}, stim), true, true);
 
-  res.json({ ok:true, stimulus: stim });
+  res.json({ ok: true, stimulus: stim });
 });
 
 // speaker management to create/update a speaker profile the decision system can use
@@ -1279,11 +1422,11 @@ app.post("/stimulate", (req, res) => {
 // returns: { ok:true, speaker }
 app.put("/speaker", (req, res) => {
   const { name, likeness, personality } = req.body || {};
-  if (!name) return res.status(400).json({ ok:false, error:"name required" });
+  if (!name) return res.status(400).json({ ok: false, error: "name required" });
   const idx = ensureSpeaker(name);
   if (typeof likeness === "number") personsPresent[idx].likeness = clamp01(likeness);
   if (personality) personsPresent[idx].personality = Object.assign({}, personsPresent[idx].personality, personality);
-  res.json({ ok:true, speaker: personsPresent[idx] });
+  res.json({ ok: true, speaker: personsPresent[idx] });
 });
 
 
@@ -1302,15 +1445,15 @@ app.get("/state", (req, res) => {
 app.post("/guilt", (req, res) => {
   const { label, guilt_influence } = req.body || {};
   if (!label || typeof guilt_influence !== "number")
-    return res.status(400).json({ ok:false, error:"label and numeric guilt_influence required" });
+    return res.status(400).json({ ok: false, error: "label and numeric guilt_influence required" });
   generateGuiltStimulus(label, clamp01(guilt_influence));
   injectQueuedStimuli();
-  res.json({ ok:true });
+  res.json({ ok: true });
 });
 
 
 app.use(express.static(path.join(__dirname, "public")));
-app.get("/dashboard", (_,res)=>res.sendFile(path.join(__dirname,"public","dashboard.html")));
+app.get("/dashboard", (_, res) => res.sendFile(path.join(__dirname, "public", "dashboard.html")));
 
 
 /* =============================
