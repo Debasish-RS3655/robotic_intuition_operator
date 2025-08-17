@@ -17,7 +17,6 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-
 // natural (tokenization + stemming)
 const natural = require('natural');
 const tokenizer = new natural.TreebankWordTokenizer();   // good, conservative English tokenizer
@@ -40,7 +39,6 @@ function initLLMApi() {
     console.warn('LLM API init failed:', e.message);
   }
 }
-
 
 
 // --- Word2Vec embeddings (semantic similarity) ---
@@ -112,6 +110,7 @@ const F = {
 };
 
 let queueSpeech = "";
+let lastDecision = null;
 
 /* =============================
  * Utilities
@@ -1031,6 +1030,7 @@ function emotionalDecide(action, options, speaker) {
 
       const emotionalSore = hasSufficientEmWeight(actionObj.data, true) * inclinationWeight;
       const personalityScore = personalityNearby(actionObj.data, true) * personalitySimilarityWeight;
+      // Option A (recommended): add reversed "repulsion" as a positive term
       const repulsionScore = calculateRepulsion(actionObj.data, true) * repulsionWeight;
       const choiceScore = emotionalSore + personalityScore - repulsionScore;
 
@@ -1256,6 +1256,10 @@ async function mainResponse(givenText, currentSpeaker = "user") {
 
     // decide using STEMS only
     var decision = emotionalDecide(DecisionmainVerbStem, decisionOptionsStem, currentSpeaker);
+
+    // expose decision + surface mapper for this turn
+    lastDecision = { decision, surfaceForStem };
+
     const randomNum = Math.round(Math.random() * 4);
     switch (decision.type) {
       case "action_liked":
@@ -1439,23 +1443,37 @@ app.post("/output", async (req, res) => {
       F.frontend_data.pitch = face.pitch;
       F.frontend_data.rate = face.rate;
 
+      lastDecision = null;
+
       // 1) Keep your deterministic decision reply (may be empty string)
       const ruleReply = await mainResponse(text, speaker);
 
       // 2) If we have a decision object in memory, extract it from lastChosenOption / or return it from mainResponse if you exposed it
       // Here we reuse lastChosenOption + the decision subtype (optional—keep simple)
-      const decisionSnapshot = null; // (optional) wire this if you return decision from mainResponse
+      let decisionSnapshot = null;
+      let chosenSurface = undefined;
 
-      // 3) Ask the LLM to phrase (falls back to ruleReply on failure)
-      const llmText = await llmPhrase({
-        userText: text,
-        emotions: agentEmo,
-        decision: decisionSnapshot,           // if available; else null
-        chosenSurface: undefined,             // if you mapped stems → surfaces earlier, pass it here for decisions
-        voiceHints: { pitch: face.pitch, rate: face.rate }
-      });
+      if (IS_DECISION_SPEECH && lastDecision?.decision) {
+        decisionSnapshot = lastDecision.decision;
+        if (typeof lastDecision.surfaceForStem === 'function' && decisionSnapshot?.subtype) {
+          chosenSurface = lastDecision.surfaceForStem(decisionSnapshot.subtype);
+        }
+      }
 
-      const finalReply = llmText || ruleReply;
+      let llmText = null;
+      if (!IS_DECISION_SPEECH) {
+        llmText = await llmPhrase({
+          userText: text,
+          emotions: agentEmo,
+          decision: null,                  // not a decision turn
+          chosenSurface: undefined,
+          voiceHints: { pitch: face.pitch, rate: face.rate }
+        });
+      }
+
+
+      const finalReply = llmText ?? ruleReply;
+
       const willSpeak = !!finalReply && !verbalCant;
       F.frontend_data.speakingState = willSpeak;
 
@@ -1653,17 +1671,6 @@ app.post("/decide", async (req, res) => {
   const { action, options, speaker, userText } = req.body || {};
   const d = emotionalDecide(action, options, speaker);
   injectQueuedStimuli();
-
-  // Phrase with LLM (optional convenience)
-  const agentEmo = emotion.getEmotions();
-  const face = faceFromEmotions(agentEmo);
-  const spoken = await llmPhrase({
-    userText: userText || `Decide between: ${JSON.stringify(options || [])}`,
-    emotions: agentEmo,
-    decision: d,
-    chosenSurface: d?.subtype, // if subtype is a label you already surface-mapped
-    voiceHints: { pitch: face.pitch, rate: face.rate }
-  });
 
   res.json({ decision: d, phrasing: spoken || null });
 });
