@@ -1,0 +1,52 @@
+{
+  "longTerm": [
+    {
+      "label": "hate",
+      "sadness": 0.6272109686609352,
+      "joy": 0.5400797394991306,
+      "fear": 0.9544128808246184,
+      "disgust": 0.6943290130581166,
+      "anger": 0.9798342620427613,
+      "surprise": 0.4845239829846958,
+      "timesOccurred": 1,
+      "totalTimesUsed": 1,
+      "isProhibited": false,
+      "openness": 0.5,
+      "conscientiousness": 0.5,
+      "extraversion": 0.5,
+      "agreeableness": 0.5,
+      "neuroticism": 0.5,
+      "relatedTasks": {},
+      "relatedStimuli": {
+        "hate": true
+      },
+      "relatedPeople": {},
+      "time": 1755425629424,
+      "indexUnderLabel": 0
+    },
+    {
+      "label": "school",
+      "sadness": 0,
+      "joy": 0.158290516411473,
+      "fear": 0,
+      "disgust": 0,
+      "anger": 1,
+      "surprise": 0,
+      "timesOccurred": 1,
+      "totalTimesUsed": 1,
+      "isProhibited": false,
+      "openness": 0.5,
+      "conscientiousness": 0.5,
+      "extraversion": 0.5,
+      "agreeableness": 0.5,
+      "neuroticism": 0.5,
+      "relatedTasks": {},
+      "relatedStimuli": {
+        "school": true
+      },
+      "relatedPeople": {},
+      "time": 1755425700137,
+      "indexUnderLabel": 0
+    }
+  ]
+}

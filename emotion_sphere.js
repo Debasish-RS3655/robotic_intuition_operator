@@ -331,7 +331,9 @@ async function emotion() {
 
         //include the guilt stimulus objects into the current stimuli array
         const currentIntensity = weightedAverage([sadnessState, joyState, fearState, disgustState, angerState, surpriseState]);
-        console.log("current intensity: ", currentIntensity);
+        
+        // console.log("current intensity: ", currentIntensity);
+        
         if (currentIntensity <= normalEmotionalIntensity) {
             //include those objects whose respective prohibited objects don't exist in the short term
             for (var dh = 0; dh < guilt_sitmuli_array.length; dh++) {
@@ -558,7 +560,9 @@ async function emotion() {
             if (includesSurprise) influenceWeightedArray.push(surpriseChange);
             //push the current weighted average influence into the property for the current object
             const currentInfluence = weightedAverage(influenceWeightedArray);
-            console.log("Current influence: ", currentInfluence);
+            
+            // console.log("Current influence: ", currentInfluence);
+            
             objectsDetected[i].arrayOfChange.unshift(currentInfluence);
             if (objectsDetected[i].arrayOfChange.length > shortTermPeriods) {
                 //remove the older changes from the array
@@ -576,7 +580,9 @@ async function emotion() {
             const sumOfChanges = addAllChanges(objectsDetected[i].arrayOfChange);
             //the latest scientific version change is the average change over the last n cycles
             const saveInfluence = sumOfChanges / objectsDetected[i].arrayOfChange.length;
-            console.log("Influence over the last 2 periods: ", saveInfluence)
+            
+            // console.log("Influence over the last 2 periods: ", saveInfluence)
+            
             objectsDetected[i].change = saveInfluence;
             if (testMode == true) {
                 //test data for this iteration
