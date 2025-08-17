@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>RIO — Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#0b0c10; --fg:#e6e6e6; --muted:#9aa0a6; --card:#11161c; --border:#20242b; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--fg); }
+    header { padding:16px 20px; display:flex; align-items:center; gap:16px; border-bottom:1px solid #222; }
+    header a { color:var(--fg); text-decoration:none; opacity:.85; }
+    main { display:grid; grid-template-columns: 1fr 1fr; gap:24px; padding:24px; }
+    .panel { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; }
+    .rows { display:grid; gap:12px; }
+    .bar { height:14px; background:#1b232c; border-radius:6px; overflow:hidden; }
+    .bar > span { display:block; height:100%; width:2%; background:#3b82f6; transition:width .2s; }
+    .face { width:260px; height:260px; background:#111 center / contain no-repeat; border-radius:16px; border:1px solid #222; }
+    table { width:100%; border-collapse:collapse; }
+    td { padding:6px 4px; border-bottom:1px solid #1f2329; color:#cbd5e1; }
+    small.muted { color:var(--muted); }
+    @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Back</a>
+    <strong>RIO — Dashboard</strong>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h3>Current Emotions</h3>
+      <div class="rows">
+        <div><small>Sadness</small><div class="bar"><span id="sadness-bar"></span></div></div>
+        <div><small>Joy</small><div class="bar"><span id="joy-bar"></span></div></div>
+        <div><small>Fear</small><div class="bar"><span id="fear-bar"></span></div></div>
+        <div><small>Disgust</small><div class="bar"><span id="disgust-bar"></span></div></div>
+        <div><small>Anger</small><div class="bar"><span id="anger-bar"></span></div></div>
+        <div><small>Surprise</small><div class="bar"><span id="surprise-bar"></span></div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Face Preview</h3>
+      <div id="face" class="face"></div>
+      <div style="margin-top:12px;">
+        <table>
+          <tr><td>Speaking</td><td id="speaking-cell">—</td></tr>
+          <tr><td>Pitch</td><td id="pitch-cell">—</td></tr>
+          <tr><td>Rate</td><td id="rate-cell">—</td></tr>
+          <tr><td>Last Chosen Option</td><td id="last-choice">—</td></tr>
+        </table>
+        <small class="muted">Images use the same GIF assets as the home page.</small>
+      </div>
+    </section>
+  </main>
+
+  <script src="/dashboard.js" defer></script>
+</body>
+</html>
