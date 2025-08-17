@@ -1487,6 +1487,7 @@ app.post("/mark_prohibited", (req, res) => {
     injectQueuedStimuli();
   }
 
+  // send this back
   res.json({ ok: true, updated });
 });
 
