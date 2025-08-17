@@ -1,12 +1,36 @@
 {
   "longTerm": [
     {
+      "label": "hate",
+      "sadness": 0.6272109686609352,
+      "joy": 0.5400797394991306,
+      "fear": 0.9544128808246184,
+      "disgust": 0.6943290130581166,
+      "anger": 0.9798342620427613,
+      "surprise": 0.4845239829846958,
+      "timesOccurred": 1,
+      "totalTimesUsed": 1,
+      "isProhibited": false,
+      "openness": 0.5,
+      "conscientiousness": 0.5,
+      "extraversion": 0.5,
+      "agreeableness": 0.5,
+      "neuroticism": 0.5,
+      "relatedTasks": {},
+      "relatedStimuli": {
+        "hate": true
+      },
+      "relatedPeople": {},
+      "time": 1755425629424,
+      "indexUnderLabel": 0
+    },
+    {
       "label": "school",
       "sadness": 0,
-      "joy": 0.05000000000000001,
+      "joy": 0.158290516411473,
       "fear": 0,
       "disgust": 0,
-      "anger": 0,
+      "anger": 1,
       "surprise": 0,
       "timesOccurred": 1,
       "totalTimesUsed": 1,
@@ -21,127 +45,7 @@
         "school": true
       },
       "relatedPeople": {},
-      "time": 1755339735889,
-      "indexUnderLabel": 0
-    },
-    {
-      "label": "disgust",
-      "sadness": 0,
-      "joy": 0.05,
-      "fear": 0,
-      "disgust": 0.2,
-      "anger": 0,
-      "surprise": 0,
-      "timesOccurred": 1,
-      "totalTimesUsed": 1,
-      "isProhibited": false,
-      "openness": 0.5,
-      "conscientiousness": 0.5,
-      "extraversion": 0.5,
-      "agreeableness": 0.5,
-      "neuroticism": 0.5,
-      "relatedTasks": {},
-      "relatedStimuli": {
-        "disgusting": true
-      },
-      "relatedPeople": {},
-      "time": 1755287720912,
-      "indexUnderLabel": 0
-    },
-    {
-      "label": "digust",
-      "sadness": 0,
-      "joy": 0.05,
-      "fear": 0,
-      "disgust": 0,
-      "anger": 0,
-      "surprise": 0,
-      "timesOccurred": 1,
-      "totalTimesUsed": 1,
-      "isProhibited": false,
-      "openness": 0.5,
-      "conscientiousness": 0.5,
-      "extraversion": 0.5,
-      "agreeableness": 0.5,
-      "neuroticism": 0.5,
-      "relatedTasks": {},
-      "relatedStimuli": {
-        "digust": true
-      },
-      "relatedPeople": {},
-      "time": 1755287572342,
-      "indexUnderLabel": 0
-    },
-    {
-      "label": "hate",
-      "sadness": 0,
-      "joy": 0,
-      "fear": 0,
-      "disgust": 0,
-      "anger": 0.5200000000000001,
-      "surprise": 0,
-      "timesOccurred": 1,
-      "totalTimesUsed": 1,
-      "isProhibited": false,
-      "openness": 0.5,
-      "conscientiousness": 0.5,
-      "extraversion": 0.5,
-      "agreeableness": 0.5,
-      "neuroticism": 0.5,
-      "relatedTasks": {},
-      "relatedStimuli": {
-        "hate": true
-      },
-      "relatedPeople": {},
-      "time": 1755339638742,
-      "indexUnderLabel": 0
-    },
-    {
-      "label": "fuck",
-      "sadness": 0,
-      "joy": 0.010000000000000002,
-      "fear": 0,
-      "disgust": 0,
-      "anger": 0.16000000000000003,
-      "surprise": 0,
-      "timesOccurred": 1,
-      "totalTimesUsed": 1,
-      "isProhibited": false,
-      "openness": 0.5,
-      "conscientiousness": 0.5,
-      "extraversion": 0.5,
-      "agreeableness": 0.5,
-      "neuroticism": 0.5,
-      "relatedTasks": {},
-      "relatedStimuli": {
-        "fucking": true
-      },
-      "relatedPeople": {},
-      "time": 1755339592216,
-      "indexUnderLabel": 0
-    },
-    {
-      "label": "happi",
-      "sadness": 0,
-      "joy": 0.20000000000000004,
-      "fear": 0,
-      "disgust": 0,
-      "anger": 0,
-      "surprise": 0,
-      "timesOccurred": 1,
-      "totalTimesUsed": 1,
-      "isProhibited": false,
-      "openness": 0.5,
-      "conscientiousness": 0.5,
-      "extraversion": 0.5,
-      "agreeableness": 0.5,
-      "neuroticism": 0.5,
-      "relatedTasks": {},
-      "relatedStimuli": {
-        "happy": true
-      },
-      "relatedPeople": {},
-      "time": 1755339721173,
+      "time": 1755425700137,
       "indexUnderLabel": 0
     }
   ]
