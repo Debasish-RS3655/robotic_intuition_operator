@@ -10,11 +10,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@llama-node/llama-cpp": "^0.1.6",
     "body-parser": "^2.2.0",
     "express": "^5.1.0",
     "groq-sdk": "^0.30.0",
-    "llama-node": "^0.1.6",
     "natural": "^8.1.0",
     "node-fetch": "^3.3.2",
     "word2vec": "^1.1.5"
