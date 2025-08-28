@@ -1736,8 +1736,8 @@ app.get("/dashboard", (_, res) => res.sendFile(path.join(__dirname, "public", "d
  * Run Server
  * ============================= */
 const options = {
-  key: fs.readFileSync('raspberrypi.local-key.pem'),
-  cert: fs.readFileSync('raspberrypi.local.pem')
+  key: fs.readFileSync('./cert/raspberrypi.local-key.pem'),
+  cert: fs.readFileSync('./cert/raspberrypi.local.pem')
 };
 
 https.createServer(options, app).listen(3000, () => {
