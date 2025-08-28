@@ -1727,9 +1727,9 @@ app.post("/guilt", (req, res) => {
   res.json({ ok: true });
 });
 
-
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/dashboard", (_, res) => res.sendFile(path.join(__dirname, "public", "dashboard.html")));
+app.get("/panel", (_, res) => res.sendFile(path.join(__dirname, "public", "panel.html")));
 
 
 /* =============================
