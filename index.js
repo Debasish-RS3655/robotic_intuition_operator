@@ -595,7 +595,7 @@ async function llmPhrase({ userText, emotions, decision, chosenSurface, voiceHin
   })();
 
   const sys = `You are an emotionally-aware assistant.
-Speak briefly (<= 2 sentences), reflecting the given mood.
+Speak briefly for just one sentence, reflecting the given mood.
 Do not choose options; choices are already decided. Just phrase the response.`;
 
   const mood = `Mood: ${tone.name} (${tone.intensity}); style: ${tone.style}.`;
