@@ -13,6 +13,7 @@
     "body-parser": "^2.2.0",
     "express": "^5.1.0",
     "groq-sdk": "^0.30.0",
+    "https": "^1.0.0",
     "natural": "^8.1.0",
     "node-fetch": "^3.3.2",
     "word2vec": "^1.1.5"
